@@ -1,0 +1,58 @@
+@token = {{login.response.body.token}}
+
+###
+POST http://localhost:5000/register
+Content-Type: application/json
+
+{"email": "qwerty@com", "password": "654321"}
+
+###
+# @name login
+POST http://localhost:5000/login
+Content-Type: application/json
+
+{"email": "gmail@com", "password": "123456"}
+
+# {"email": "qwerty@com", "password": "654321"}
+
+
+
+###
+GET http://localhost:5000/createFile
+
+###
+GET http://localhost:5000/readFile
+
+###
+GET http://localhost:5000/readTask/2
+
+
+###
+GET http://localhost:5000/readTasks/user/be80de0a-aa7c-4cd9-ac7b-f333588ce82d
+
+###
+POST http://localhost:5000/createTask
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"title": "купить газету"}
+
+###
+PATCH http://localhost:5000/updateDone/6
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+### 
+PUT http://localhost:5000/updateTitle/6
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"newTitle": "Купить воду"}
+
+###
+DELETE http://localhost:5000/deleteFile
+
+###
+DELETE http://localhost:5000/deleteTask/2
+Authorization: Bearer {{token}}
+Content-Type: application/json
