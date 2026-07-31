@@ -37,6 +37,9 @@ app.post("/register", async (req, res) => {
   const data = await fs.readFile(DB);
   const db = JSON.parse(data);
 
+  console.log("db - ", db);
+  console.log("users - ", db.users);
+
   const user = {
     id: randomUUID(),
     email,
@@ -87,7 +90,7 @@ function auth(req, res, next) {
 
 app.get("/createFile", async (req, res) => {
   try {
-    await fs.writeFile(DB, JSON.stringify([{ user: [], tasks: [] }], null, 2), {
+    await fs.writeFile(DB, JSON.stringify({ users: [], tasks: [] }, null, 2), {
       flag: "wx",
     });
     res.send("Создал!");
