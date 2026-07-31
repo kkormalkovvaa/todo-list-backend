@@ -14,9 +14,9 @@ import {
 import { error } from "console";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import cors from "cors";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDocument } from "./swagger.js";
-import cors from "cors";
 
 const SECRET = "access-secret";
 const TOKEN_TTL = "1h";
