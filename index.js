@@ -16,6 +16,7 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDocument } from "./swagger.js";
+import cors from "cors";
 
 const SECRET = "access-secret";
 const TOKEN_TTL = "1h";
@@ -24,6 +25,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
