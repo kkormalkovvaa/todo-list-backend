@@ -11,10 +11,9 @@ import {
   validateGetTasks,
   handleValidationErrors,
 } from "./validators.js";
-import { error } from "console";
+import cors from "cors";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import cors from "cors";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDocument } from "./swagger.js";
 
@@ -88,7 +87,9 @@ function auth(req, res, next) {
 
 app.get("/createFile", async (req, res) => {
   try {
-    await fs.writeFile(DB, JSON.stringify([], null, 2), { flag: "wx" });
+    await fs.writeFile(DB, JSON.stringify([{ user: [], tasks: [] }], null, 2), {
+      flag: "wx",
+    });
     res.send("Создал!");
   } catch (err) {
     console.log(err.message);
