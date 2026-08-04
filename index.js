@@ -1,8 +1,5 @@
 import express from "express";
 import bcrypt from "bcryptjs";
-import { randomUUID } from "crypto";
-import fs from "fs/promises";
-import path from "path";
 import jwt from "jsonwebtoken";
 import {
   taskId,
@@ -12,61 +9,21 @@ import {
   handleValidationErrors,
 } from "./validators.js";
 import cors from "cors";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
+import dotenv from "dotenv";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDocument } from "./swagger.js";
+import UserServices from "./services/UserServices.js";
+import TaskServices from "./services/TaskServices.js";
+
+dotenv.config();
 
 const SECRET = "access-secret";
 const TOKEN_TTL = "1h";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-
-console.log("dir", __dirname);
-const DB = path.join(__dirname, "db.json");
-
-app.post("/register", async (req, res) => {
-  const { email, password } = req.body;
-
-  const data = await fs.readFile(DB);
-  const db = JSON.parse(data);
-
-  console.log("db - ", db);
-  console.log("users - ", db.users);
-
-  const user = {
-    id: randomUUID(),
-    email,
-    passwordHash: await bcrypt.hash(password, 10),
-  };
-
-  db.users.push(user);
-  await fs.writeFile(DB, JSON.stringify(db, null, 2), { flag: "w" });
-
-  res.status(201).json({ id: user.id, email: user.email });
-});
-
-app.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-
-  const data = await fs.readFile(DB);
-  const db = JSON.parse(data);
-
-  const user = db.users.find((user) => user.email === email);
-  const pass = await bcrypt.compare(password, user.passwordHash);
-
-  if (!user || !pass) {
-    res.status(401).send("Неверный email или password");
-  }
-
-  res.json({ token: signToken(user) });
-});
 
 function signToken(user) {
   return jwt.sign({ id: user.id, email: user.email }, SECRET, {
@@ -75,6 +32,8 @@ function signToken(user) {
 }
 
 function auth(req, res, next) {
+  console.log("req.headers - ", req.headers);
+  console.log("req.headers.authorization - ", req.headers.authorization);
   const [scheme, token] = req.headers.authorization.split(" ");
 
   try {
@@ -88,28 +47,53 @@ function auth(req, res, next) {
   }
 }
 
-app.get("/createFile", async (req, res) => {
+app.post("/register", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email и пароль обязательны" });
+  }
+
   try {
-    await fs.writeFile(DB, JSON.stringify({ users: [], tasks: [] }, null, 2), {
-      flag: "wx",
+    const existingUser = await UserServices.findByEmail(email);
+    if (existingUser) {
+      return res
+        .status(409)
+        .json({ error: "Пользователь с таким email уже существует" });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const result = await UserServices.createUser({ email, passwordHash });
+
+    res.status(201).json({
+      id: result.insertedId,
+      email,
     });
-    res.send("Создал!");
   } catch (err) {
-    console.log(err.message);
-    res.status(500).send("Ошибка сервера");
+    console.error(err);
+    res.status(500).json({ error: "Ошибка сервера" });
   }
 });
 
-app.get("/readFile", async (req, res) => {
+app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
   try {
-    try {
-      await fs.access(DB);
-    } catch (err) {
-      res.status(404).send("Файл не найден");
+    const user = await UserServices.findByEmail(email);
+
+    if (!user) {
+      return res.status(401).json({ error: "Неверный email или пароль" });
     }
-    await fs.readFile(DB);
+
+    const pass = await bcrypt.compare(password, user.passwordHash);
+    if (!pass) {
+      return res.status(401).json({ error: "Неверный email или пароль" });
+    }
+
+    res.json({ token: signToken(user) });
   } catch (err) {
-    res.status(500).send("Ошибка сервера");
+    console.error(err);
+    res.status(500).json({ error: "Ошибка сервера" });
   }
 });
 
@@ -120,31 +104,18 @@ app.post(
   handleValidationErrors,
   async (req, res) => {
     try {
-      await fs.access(DB);
+      const newTask = {
+        userId: req.user.id,
+        title: req.body.title,
+        description: req.body.description,
+        done: false,
+      };
+
+      const task = await TaskServices.createTask(newTask);
+      res.status(201).json(task);
     } catch (err) {
-      res.status(404).send("Файл не найден");
-    }
-    const row = await fs.readFile(DB, "utf-8");
-    const db = JSON.parse(row);
-
-    const newTask = {
-      userId: req.user.id,
-      id: db.tasks.length
-        ? Math.max(...db.tasks.map((item) => item.id)) + 1
-        : 1,
-      title: req.body.title,
-      done: false,
-      createdAt: new Date(),
-    };
-
-    db.tasks.push(newTask);
-
-    try {
-      await fs.writeFile(DB, JSON.stringify(db, null, 2));
-
-      res.send("Таска добавлена!");
-    } catch (error) {
-      next(error);
+      console.error(err);
+      next(err);
     }
   },
 );
@@ -154,28 +125,16 @@ app.get(
   handleValidationErrors,
   async (req, res, next) => {
     try {
-      await fs.access(DB);
-    } catch (err) {
-      res.status(404).send("Файл не найден");
-    }
+      const tasks = await TaskServices.getTasksByUserId(req.params.userId);
 
-    const row = await fs.readFile(DB, "utf-8");
-    const db = JSON.parse(row);
-    try {
-      const userTasks = db.tasks.filter(
-        (task) => task.userId === req.params.userId,
-      );
-
-      if (userTasks == 0) {
-        return res
-          .status(404)
-          .send("Для вашего пользователя задачи не найдены");
+      if (tasks.length === 0) {
+        return res.status(404).json({ message: "Задачи не найдены" });
       }
 
-      res.json(userTasks);
+      res.json(tasks);
     } catch (err) {
-      next(error);
-      // res.status(500).send("Ошибка сервера");
+      console.error(err);
+      next(err);
     }
   },
 );
@@ -186,61 +145,43 @@ app.get(
   handleValidationErrors,
   async (req, res, next) => {
     try {
-      await fs.access(DB);
+      const task = await TaskServices.getTaskById(req.params.id);
+
+      if (!task) {
+        return res.status(404).json({ error: "Таска не найдена" });
+      }
+
+      res.json(task);
     } catch (err) {
-      res.status(404).send("Файл не найден");
-    }
-    const row = await fs.readFile(DB, "utf-8");
-    const db = JSON.parse(row);
-
-    try {
-      const task = db.tasks.find((task) => task.id == req.params.id);
-
-      if (!task) return res.status(404).send("Таска не найдена");
-
-      console.log("task - ", task);
-      res.send("Таска найдена!");
-    } catch (error) {
-      next(error);
+      console.error(err);
+      next(err);
     }
   },
 );
 
-app.patch(
-  "/updateDone/:id",
-  auth,
-  handleValidationErrors,
-  async (req, res, next) => {
-    try {
-      await fs.access(DB);
-    } catch (err) {
-      res.status(404).send("Файл не найден");
+app.patch("/updateDone/:id", auth, async (req, res, next) => {
+  try {
+    const task = await TaskServices.getTaskById(req.params.id);
+
+    if (!task) {
+      return res.status(404).json({ error: "Таска не найдена" });
     }
-    const id = req.params.id;
-    const row = await fs.readFile(DB, "utf-8");
-    const db = JSON.parse(row);
 
-    try {
-      const taskIndex = db.tasks.findIndex((task) => task.id == id);
-
-      if (taskIndex === -1) {
-        return res.status(404).send("Таска не найдена");
-      }
-
-      if (db.tasks[taskIndex].userId !== req.user.id) {
-        return res.status(403).send("Нет прав на изменение этой задачи");
-      }
-
-      db.tasks[taskIndex].done = !db.tasks[taskIndex].done;
-
-      await fs.writeFile(DB, JSON.stringify(db, null, 2));
-      console.log(db.tasks[taskIndex]);
-      res.send("Таска изменена!");
-    } catch (error) {
-      next(error);
+    if (task.userId !== req.user.id) {
+      return res
+        .status(403)
+        .json({ error: "Нет прав на изменение этой задачи" });
     }
-  },
-);
+
+    const newDoneStatus = !task.done;
+    await TaskServices.updateTaskStatus(req.params.id, newDoneStatus);
+
+    res.json({ message: "Статус задачи изменён", done: newDoneStatus });
+  } catch (err) {
+    console.error(err);
+    next(err);
+  }
+});
 
 app.put(
   "/updateTitle/:id",
@@ -248,32 +189,29 @@ app.put(
   handleValidationErrors,
   async (req, res, next) => {
     try {
-      try {
-        await fs.access(DB);
-      } catch (err) {
-        res.status(404).send("Файл не найден");
-      }
       const { newTitle } = req.body;
-      const id = req.params.id;
-      const row = await fs.readFile(DB, "utf-8");
-      const db = JSON.parse(row);
 
-      const taskIndex = db.tasks.findIndex((task) => task.id == id);
-
-      if (taskIndex === -1) {
-        return res.status(404).send("Таска не найдена");
+      if (!newTitle) {
+        return res.status(400).json({ error: "Поле newTitle обязательно" });
       }
 
-      if (db.tasks[taskIndex].userId !== req.user.id) {
-        return res.status(403).send("Нет прав на изменение этой задачи");
+      const task = await TaskServices.getTaskById(req.params.id);
+
+      if (!task) {
+        return res.status(404).json({ error: "Таска не найдена" });
       }
 
-      db.tasks[taskIndex].title = newTitle;
-      await fs.writeFile(DB, JSON.stringify(db, null, 2));
+      if (task.userId !== req.user.id) {
+        return res
+          .status(403)
+          .json({ error: "Нет прав на изменение этой задачи" });
+      }
 
-      console.log(db.tasks[taskIndex]);
-      res.send("Тайтл таски изменен");
+      await TaskServices.updateTaskTitle(req.params.id, newTitle);
+
+      res.json({ message: "Тайтл таски изменен", title: newTitle });
     } catch (err) {
+      console.error(err);
       next(err);
     }
   },
@@ -285,53 +223,28 @@ app.delete(
   handleValidationErrors,
   async (req, res, next) => {
     try {
-      await fs.access(DB);
+      const task = await TaskServices.getTaskById(req.params.id);
+
+      if (!task) {
+        return res.status(404).json({ error: "Таска не найдена" });
+      }
+
+      if (task.userId !== req.user.id) {
+        return res
+          .status(403)
+          .json({ error: "Нет прав на удаление этой задачи" });
+      }
+
+      await TaskServices.deleteTaskById(req.params.id);
+
+      res.json({ message: "Таска удалена!" });
     } catch (err) {
-      res.status(404).send("Файл не найден");
-    }
-
-    const row = await fs.readFile(DB, "utf-8");
-    const db = JSON.parse(row);
-
-    const taskIndex = db.tasks.findIndex((task) => task.id == req.params.id);
-
-    if (taskIndex == -1) {
-      return res.status(404).send("Задача с таким ID не найдена");
-    }
-
-    if (db.tasks[taskIndex].userId !== req.user.id) {
-      return res.status(403).send("Нет прав на удаление этой задачи");
-    }
-
-    db.tasks.splice(taskIndex, 1);
-    try {
-      await fs.writeFile(DB, JSON.stringify(db, null, 2));
-      res.send("Таска удалена!");
-    } catch (err) {
+      console.error(err);
       next(err);
     }
   },
 );
 
-app.delete("/deleteFile", async (req, res) => {
-  try {
-    try {
-      await fs.access(DB);
-    } catch (err) {
-      res.status(404).send("Такой файл не найден!");
-    }
-
-    await fs.unlink(DB);
-    res.send("Файл db.json удален");
-  } catch (err) {}
-});
-
 app.listen(5000, () => {
   console.log("Старт");
 });
-
-// get — только свои таски получить
-// post — создание в свои таски (добавить userId)
-// patch — изменение title толкьо своей таски
-// patch — done толкьо своей таски
-// delete — удаление толкьо своей таски

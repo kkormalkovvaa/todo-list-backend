@@ -44,7 +44,7 @@ Authorization: Bearer {{token}}
 Content-Type: application/json
 
 ### 
-PUT http://localhost:5000/updateTitle/6
+PUT http://localhost:5000/updateTitle/1
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
