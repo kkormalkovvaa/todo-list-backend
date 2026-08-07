@@ -71,8 +71,11 @@ class TaskServices {
       updatedAt: new Date(),
     };
     const result = await db.collection(this.#COLLECTION).insertOne(newTask);
+    const createdTask = await db
+      .collection(this.#COLLECTION)
+      .findOne({ _id: result.insertedId });
     await connection.close();
-    return { id: result.insertedId, ...newTask };
+    return createdTask;
   }
 
   // 7. Удаление одной задачи по id

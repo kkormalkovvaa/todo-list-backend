@@ -26,15 +26,19 @@ app.use(express.json());
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 function signToken(user) {
-  return jwt.sign({ id: user.id, email: user.email }, SECRET, {
+  return jwt.sign({ id: user._id.toString(), email: user.email }, SECRET, {
     expiresIn: TOKEN_TTL,
   });
 }
 
 function auth(req, res, next) {
-  console.log("req.headers - ", req.headers);
-  console.log("req.headers.authorization - ", req.headers.authorization);
-  const [scheme, token] = req.headers.authorization.split(" ");
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: "Токен не предоставлен" });
+  }
+
+  const [scheme, token] = authHeader.split(" ");
 
   try {
     req.user = jwt.verify(token, SECRET, { algorithms: ["HS256"] });
@@ -64,10 +68,11 @@ app.post("/register", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await UserServices.createUser({ email, passwordHash });
+    const user = await UserServices.findByEmail(email);
 
     res.status(201).json({
-      id: result.insertedId,
-      email,
+      token: signToken(user),
+      user: { id: result.insertedId, email },
     });
   } catch (err) {
     console.error(err);
@@ -90,7 +95,10 @@ app.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Неверный email или пароль" });
     }
 
-    res.json({ token: signToken(user) });
+    res.json({
+      token: signToken(user),
+      user: { id: user._id, email: user.email },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Ошибка сервера" });
@@ -126,11 +134,6 @@ app.get(
   async (req, res, next) => {
     try {
       const tasks = await TaskServices.getTasksByUserId(req.params.userId);
-
-      if (tasks.length === 0) {
-        return res.status(404).json({ message: "Задачи не найдены" });
-      }
-
       res.json(tasks);
     } catch (err) {
       console.error(err);
@@ -244,6 +247,22 @@ app.delete(
     }
   },
 );
+
+app.delete("/deleteAllTasks/user/:userId", auth, async (req, res, next) => {
+  try {
+    if (req.params.userId !== req.user.id) {
+      return res
+        .status(403)
+        .json({ error: "Нет прав на удаление задач этого пользователя" });
+    }
+
+    const result = await TaskServices.deleteAllTasksByUserId(req.params.userId);
+    res.json({ message: `Удалено задач: ${result.deletedCount}` });
+  } catch (err) {
+    console.error(err);
+    next(err);
+  }
+});
 
 app.listen(5000, () => {
   console.log("Старт");
