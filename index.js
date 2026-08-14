@@ -12,8 +12,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDocument } from "./swagger.js";
-import UserServices from "./services/UserServices.js";
-import TaskServices from "./services/TaskServices.js";
+import UserServices from "./services/userServices.js";
+import TaskServices from "./services/taskServices.js";
 import mongoHelper from "./helpers/mongoHelper.js";
 
 dotenv.config();
