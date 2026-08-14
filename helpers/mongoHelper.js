@@ -21,9 +21,15 @@ async function getClient() {
     maxPoolSize: 10,
   });
 
-  await client.connect();
-  console.log("✅ Подключено к MongoDB Atlas");
-  return client;
+  try {
+    await client.connect();
+    console.log("✅ Подключено к MongoDB Atlas");
+    return client;
+  } catch (err) {
+    client = null;
+    console.error("❌ Ошибка подключения к MongoDB:", err.message);
+    throw err;
+  }
 }
 
 const mongoHelper = {
