@@ -10,9 +10,6 @@ export const swaggerDocument = {
   },
   servers: [
     {
-      url: "http://localhost:5000",
-    },
-    {
       url: "https://todo-list-backend-w3z0.onrender.com",
     },
   ],
