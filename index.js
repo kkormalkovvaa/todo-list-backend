@@ -265,8 +265,9 @@ app.delete("/deleteAllTasks/user/:userId", auth, async (req, res, next) => {
   }
 });
 
-app.listen(5000, () => {
-  console.log("Старт");
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log("Старт на порту", PORT);
 });
 
 process.on("SIGINT", async () => {
