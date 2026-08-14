@@ -3,15 +3,20 @@ import mongoHelper from "../helpers/mongoHelper.js";
 
 class UserServices {
   #COLLECTION = "users";
+  #PROJECTION = { _id: 0, passwordHash: 0 };
 
   async findByEmail(email) {
     const db = await mongoHelper.getDb();
-    return db.collection(this.#COLLECTION).findOne({ email });
+    return db
+      .collection(this.#COLLECTION)
+      .findOne({ email }, { projection: this.#PROJECTION });
   }
 
   async findByUserId(userId) {
     const db = await mongoHelper.getDb();
-    return db.collection(this.#COLLECTION).findOne({ userId });
+    return db
+      .collection(this.#COLLECTION)
+      .findOne({ userId }, { projection: this.#PROJECTION });
   }
 
   async createUser(userData) {
