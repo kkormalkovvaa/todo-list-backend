@@ -27,7 +27,7 @@ app.use(express.json());
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 function signToken(user) {
-  return jwt.sign({ id: user._id.toString(), email: user.email }, SECRET, {
+  return jwt.sign({ id: user.userId, email: user.email }, SECRET, {
     expiresIn: TOKEN_TTL,
   });
 }
@@ -68,12 +68,12 @@ app.post("/register", async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const result = await UserServices.createUser({ email, passwordHash });
+    const userId = await UserServices.createUser({ email, passwordHash });
     const user = await UserServices.findByEmail(email);
 
     res.status(201).json({
       token: signToken(user),
-      user: { id: result.insertedId, email },
+      user: { id: userId, email },
     });
   } catch (err) {
     console.error(err);
@@ -98,7 +98,7 @@ app.post("/login", async (req, res) => {
 
     res.json({
       token: signToken(user),
-      user: { id: user._id, email: user.email },
+      user: { id: user.userId, email: user.email },
     });
   } catch (err) {
     console.error(err);

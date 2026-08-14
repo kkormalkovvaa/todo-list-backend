@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import mongoHelper from "../helpers/mongoHelper.js";
 
 class UserServices {
@@ -8,17 +9,20 @@ class UserServices {
     return db.collection(this.#COLLECTION).findOne({ email });
   }
 
-  async createUser(userData) {
+  async findByUserId(userId) {
     const db = await mongoHelper.getDb();
-    return db.collection(this.#COLLECTION).insertOne({
-      ...userData,
-      createdAt: new Date(),
-    });
+    return db.collection(this.#COLLECTION).findOne({ userId });
   }
 
-  async findById(id) {
+  async createUser(userData) {
     const db = await mongoHelper.getDb();
-    return db.collection(this.#COLLECTION).findOne({ _id: id });
+    const userId = randomUUID();
+    await db.collection(this.#COLLECTION).insertOne({
+      ...userData,
+      userId,
+      createdAt: new Date(),
+    });
+    return userId;
   }
 }
 
