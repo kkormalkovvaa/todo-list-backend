@@ -14,6 +14,7 @@ import swaggerUi from "swagger-ui-express";
 import { swaggerDocument } from "./swagger.js";
 import UserServices from "./services/UserServices.js";
 import TaskServices from "./services/TaskServices.js";
+import mongoHelper from "./helpers/mongoHelper.js";
 
 dotenv.config();
 
@@ -266,4 +267,13 @@ app.delete("/deleteAllTasks/user/:userId", auth, async (req, res, next) => {
 
 app.listen(5000, () => {
   console.log("Старт");
+});
+
+process.on("SIGINT", async () => {
+  await mongoHelper.close();
+  process.exit(0);
+});
+process.on("SIGTERM", async () => {
+  await mongoHelper.close();
+  process.exit(0);
 });

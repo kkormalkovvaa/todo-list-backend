@@ -1,43 +1,42 @@
 import { MongoClient } from "mongodb";
 
+let client = null;
+
+async function getClient() {
+  if (client) return client;
+
+  const connectionString = process.env.MONGO_CONNECTION_STRING;
+  if (!connectionString) {
+    throw new Error("MONGO_CONNECTION_STRING не задан в .env файле");
+  }
+
+  const dbName = process.env.MONGO_DB_NAME;
+  if (!dbName) {
+    throw new Error("MONGO_DB_NAME не задан в .env файле");
+  }
+
+  client = new MongoClient(connectionString, {
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 5000,
+    maxPoolSize: 10,
+  });
+
+  await client.connect();
+  console.log("✅ Подключено к MongoDB Atlas");
+  return client;
+}
+
 const mongoHelper = {
-  async getConnection() {
-    const connectionString = process.env.MONGO_CONNECTION_STRING;
-
-    if (!connectionString) {
-      throw new Error("MONGO_CONNECTION_STRING не задан в .env файле");
-    }
-
-    try {
-      const client = new MongoClient(connectionString, {
-        serverSelectionTimeoutMS: 5000, // 5 секунд на подключение
-        connectTimeoutMS: 5000, // 5 секунд на установку соединения
-      });
-      await client.connect();
-      return client;
-    } catch (error) {
-      console.error("❌ Ошибка подключения к MongoDB:", error.message);
-      throw error;
-    }
-  },
-  useDefaultDb(connection) {
-    const dbName = process.env.MONGO_DB_NAME;
-
-    if (!dbName) {
-      throw new Error("MONGO_DB_NAME не задан в .env файле");
-    }
-
-    return connection.db(dbName);
+  async getDb() {
+    const c = await getClient();
+    return c.db(process.env.MONGO_DB_NAME);
   },
 
-  async closeConnection(connection) {
-    if (connection) {
-      try {
-        await connection.close();
-        console.log("🔌 Соединение с MongoDB закрыто");
-      } catch (error) {
-        console.error("❌ Ошибка при закрытии соединения:", error.message);
-      }
+  async close() {
+    if (client) {
+      await client.close();
+      client = null;
+      console.log("🔌 Соединение с MongoDB закрыто");
     }
   },
 };
